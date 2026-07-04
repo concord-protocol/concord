@@ -29,6 +29,8 @@ Concord is defined by a series of **CORD** documents. Like Nostr's NIPs, each is
 | [05](05.md) | Invites | Shareable links whose keys live in an encrypted bundle on relays; the link carries only a token, so invites revoke without re-keying. |
 | [06](06.md) | Rekeys & Refoundings | Post-removal secrecy: rotate a channel's key to cut off a removed member, or re-found the whole community at a new epoch to ban someone for real. |
 
+For a non-normative, at-a-glance reference, [examples.md](examples.md) shows example JSON for every event kind in the registry (CORD-02, Appendix B).
+
 ## How it works, at the simplest level
 
 A community is just a **shared key** (holding it *is* membership), a **signed roster** anyone can verify, and a handful of **relays** that only ever carry sealed blobs.
