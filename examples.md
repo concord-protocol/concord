@@ -136,7 +136,7 @@ NIP-29 shape: the `content` is the message text.
 }
 ```
 
-A reply cites the parent message's *rumor* id (never the outer wrap's, which differs per re-wrap):
+A reply quotes the parent with a `q` tag (NIP-C7), citing the parent message's *rumor* id (never the outer wrap's, which differs per re-wrap):
 
 ```jsonc
 {
@@ -147,7 +147,7 @@ A reply cites the parent message's *rumor* id (never the outer wrap's, which dif
     ["channel", "<channel_id>"],
     ["epoch", "0"],
     ["ms", "902"],
-    ["e", "<parent message rumor id>"]
+    ["q", "<parent message rumor id>", "", "<parent author>"]
   ],
   "created_at": 1686840304
 }
