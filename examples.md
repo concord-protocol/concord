@@ -24,6 +24,7 @@ Conventions used throughout:
 | 3302 | Edit | [§2.4](#24-kind-3302--edit) |
 | 3310 | WebXDC peer signal | [§2.5](#25-kind-3310--webxdc-peer-signal) |
 | 23311 | Typing indicator (ephemeral) | [§2.6](#26-kind-23311--typing-indicator) |
+| 23313 | Voice presence (ephemeral) | [§2.7](#27-kind-23313--voice-presence) |
 | 3306 | Join / Leave | [§3.1](#31-kind-3306--join--leave) |
 | 3309 | Kick | [§3.2](#32-kind-3309--kick) |
 | 3312 | Guestbook snapshot | [§3.3](#33-kind-3312--guestbook-snapshot) |
@@ -111,7 +112,7 @@ Identical structure to `1059`, but relays MUST NOT store it: broadcast to live s
 {
   "kind": 21059,
   "pubkey": "<channel_pk>",
-  "content": nip44_encrypt(conv_key, { /* kind 20013 seal around a kind 23311 rumor, §2.6 */ }),
+  "content": nip44_encrypt(conv_key, { /* kind 20013 seal around a kind 23311 or 23313 rumor, §2.6–2.7 */ }),
   "tags": [ ["p", "<random ephemeral pubkey>"] ],
   "created_at": 1686840217,
   "sig": "<channel stream signature>"
@@ -240,7 +241,7 @@ Realtime peer signaling for WebXDC apps. The CORDs register the kind but don't y
 
 ### 2.6 Kind 23311 — Typing indicator
 
-The one **ephemeral** action: same seal-and-rumor shape at the same Channel address, but the outer wrap is kind `21059` (§1.3) and the rumor kind is ephemeral-range too, so relays never store any layer of it. Presence of the event is the signal; the rumor carries nothing.
+An **ephemeral** action: same seal-and-rumor shape at the same Channel address, but the outer wrap is kind `21059` (§1.3) and the rumor kind is ephemeral-range too, so relays never store any layer of it. Presence of the event is the signal; the rumor carries nothing.
 
 ```jsonc
 {
@@ -253,6 +254,40 @@ The one **ephemeral** action: same seal-and-rumor shape at the same Channel addr
     ["ms", "45"]
   ],
   "created_at": 1686840216
+}
+```
+
+### 2.7 Kind 23313 — Voice presence
+
+Ephemeral like the typing indicator (`21059` wrap, §1.3): call heartbeats are realtime-only, nothing worth storing. The `content` is the verb; a `joined` repeats every 30 seconds carrying the broker-assigned SFU identity and the broker origin, goes stale after 90 seconds (three missed heartbeats), and a `left` omits both (CORD-07 §4).
+
+```jsonc
+// Joined (also the heartbeat)
+{
+  "kind": 23313,
+  "pubkey": "<member>",
+  "content": "joined",
+  "tags": [
+    ["channel", "<channel_id>"],
+    ["epoch", "0"],
+    ["identity", "<SFU identity>"],
+    ["broker", "https://broker.example"],
+    ["ms", "417"]
+  ],
+  "created_at": 1686840217
+}
+
+// Left (best-effort; a missed one heals by staleness)
+{
+  "kind": 23313,
+  "pubkey": "<member>",
+  "content": "left",
+  "tags": [
+    ["channel", "<channel_id>"],
+    ["epoch", "0"],
+    ["ms", "902"]
+  ],
+  "created_at": 1686840305
 }
 ```
 
@@ -378,10 +413,11 @@ Per-`vsk` `content` payloads:
 
 ### vsk 2 — Channel metadata (CORD-03 §2)
 
-`eid` = the `channel_id`. Gated by `MANAGE_CHANNELS`.
+`eid` = the `channel_id`. Gated by `MANAGE_CHANNELS`. The optional `voice` flag marks a callable Channel (CORD-07), absent means false.
 
 ```jsonc
 { "name": "general", "private": false }
+{ "name": "lounge",  "private": false, "voice": true }
 ```
 
 A deletion is an edition setting the terminal flag:

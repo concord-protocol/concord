@@ -38,6 +38,7 @@ Concord is defined by a series of **CORD** documents. Like Nostr's NIPs, each is
 | [04](04.md) | Roles | Granular, ranked, owner-rooted permissions (Admin, Mod, custom) — validated by every client, enforced by rejection, not by a server. |
 | [05](05.md) | Invites | Shareable links whose keys live in an encrypted bundle on relays; the link carries only a locator and an unlock token, so invites revoke without re-keying. Or skip the URL: giftwrap the keys straight to an npub as a Direct Invite. |
 | [06](06.md) | Rekeys & Refoundings | Post-removal secrecy: rotate a channel's key to cut off a removed member, or re-found the whole community at a new epoch to ban someone for real. |
+| [07](07.md) | Audio/Video | Voice, video, and screenshare in any channel: a blind token broker and an SFU that only ever forward ciphertext, membership proven by key possession, participants verified by signed presence. |
 
 For a non-normative, at-a-glance reference, [examples.md](examples.md) shows example JSON for every event kind in the registry (CORD-02, Appendix B).
 
