@@ -32,6 +32,7 @@ Conventions used throughout:
 | 33301 | Public invite bundle | [§6.1](#61-kind-33301--public-invite-bundle) |
 | 13302 | Community List | [§6.2](#62-kind-13302--community-list) |
 | 13303 | Invite List | [§6.3](#63-kind-13303--invite-list) |
+| 3313 | Direct invite (standard NIP-59 wrap) | [§7](#7-kind-3313--direct-invite) |
 
 Retired kinds (`3300, 3301, 3304, 3305, 3307, 3311, 23308`) have no examples: their numbers are burned, never reused (CORD-02, Appendix B).
 
@@ -585,5 +586,42 @@ The encrypted list's plaintext:
   "tombstones": [
     { "token": "<hex>", "community_id": "<hex>" }
   ]
+}
+```
+
+## 7. Kind 3313 — Direct invite
+
+The one event riding a **standard** NIP-59 giftwrap (CORD-05 §6): ephemeral wrap author, the recipient in the `p` tag, a kind `13` seal — not the reversed stream wrap of §1 — plus the outer `["k", "3313"]` that makes invites indexable. A recipient fetches exactly their invites with `{"kinds":[1059], "#p":["<me>"], "#k":["3313"]}`, no bulk decryption of their giftwrap inbox required. The outer tag is an unsigned hint; the rumor's kind is the authority.
+
+The rumor carries the §6.1 `CommunityInvite` bundle itself as its content — no coordinate, no token, nothing to fetch (the giftwrap already encrypts to the recipient) — validated exactly as a fetched bundle: the self-certifying `community_id`, the CORD-05 §1 bounds, `expires_at`. A key handoff, not a standing door: unrevocable once landed, absent from the Registry, and it never flips the Community Public, which is what lets a Private Community grow by personal invitation (CORD-05 §6). Nothing happens on receipt — no relay connection, no icon fetch, no Join — until the user accepts.
+
+```jsonc
+{
+  "id": "<wrap id>",
+  "kind": 1059,
+  "pubkey": "<ephemeral pubkey, single-use>",
+  "content": nip44_encrypt(ephemeral↔recipient, {
+    "id": "<seal id>",
+    "kind": 13,                                   // standard NIP-59 seal
+    "pubkey": "<inviter's real pubkey>",
+    "content": nip44_encrypt(inviter↔recipient, {
+      "id": "<rumor id>",
+      "kind": 3313,
+      "pubkey": "<inviter's real pubkey>",
+      "content": json_stringify({ /* the CommunityInvite bundle, §6.1 */ }),
+      "tags": [],
+      "created_at": 1719800000
+    }),
+    "tags": [],
+    "created_at": 1719764213,                     // NIP-59: tweaked into the past
+    "sig": "<inviter's real signature>"
+  }),
+  "tags": [
+    ["p", "<recipient pubkey>"],                  // classic NIP-59: fixed recipient, ephemeral author
+    ["k", "3313"],                                // the index hint (CORD-05 §6)
+    ["expiration", "1735689600"]                  // optional NIP-40, matching the bundle's expires_at
+  ],
+  "created_at": 1719731502,                       // NIP-59: tweaked into the past
+  "sig": "<ephemeral key signature>"
 }
 ```
