@@ -32,6 +32,7 @@ Conventions used throughout:
 | 33301 | Public invite bundle | [§6.1](#61-kind-33301--public-invite-bundle) |
 | 13302 | Community List | [§6.2](#62-kind-13302--community-list) |
 | 13303 | Invite List | [§6.3](#63-kind-13303--invite-list) |
+| 3313 | Direct invite (standard NIP-59 wrap) | [§7](#7-kind-3313--direct-invite) |
 
 Retired kinds (`3300, 3301, 3304, 3305, 3307, 3311, 23308`) have no examples: their numbers are burned, never reused (CORD-02, Appendix B).
 
@@ -585,5 +586,44 @@ The encrypted list's plaintext:
   "tombstones": [
     { "token": "<hex>", "community_id": "<hex>" }
   ]
+}
+```
+
+## 7. Kind 3313 — Direct invite
+
+The one event riding a **standard** NIP-59 giftwrap (CORD-05 §6): ephemeral wrap author, the recipient in the `p` tag, a kind `13` seal — not the reversed stream wrap of §1 — plus the outer `["k", "3313"]` that makes invites indexable. A recipient fetches exactly their invites with `{"kinds":[1059], "#p":["<me>"], "#k":["3313"]}`, no bulk decryption of their giftwrap inbox required. The outer tag is an unsigned hint; the rumor's kind is the authority.
+
+The rumor carries an invite *link* (CORD-05 §2), never keys, so revocation, refresh, and Registry accounting apply to a Direct Invite exactly as to the link it carries. A client renders it from the rumor alone and touches no network — no bundle fetch, no fragment relays — until the user acts on it (CORD-05 §6).
+
+```jsonc
+{
+  "id": "<wrap id>",
+  "kind": 1059,
+  "pubkey": "<ephemeral pubkey, single-use>",
+  "content": nip44_encrypt(ephemeral↔recipient, {
+    "id": "<seal id>",
+    "kind": 13,                                   // standard NIP-59 seal
+    "pubkey": "<inviter's real pubkey>",
+    "content": nip44_encrypt(inviter↔recipient, {
+      "id": "<rumor id>",
+      "kind": 3313,
+      "pubkey": "<inviter's real pubkey>",
+      "content": "Come hang out with us!",        // optional personal note, may be empty
+      "tags": [
+        ["u", "https://vectorapp.io/invite/<naddr>#<fragment>"]   // the CORD-05 §2 link, verbatim
+      ],
+      "created_at": 1719800000
+    }),
+    "tags": [],
+    "created_at": 1719764213,                     // NIP-59: tweaked into the past
+    "sig": "<inviter's real signature>"
+  }),
+  "tags": [
+    ["p", "<recipient pubkey>"],                  // classic NIP-59: fixed recipient, ephemeral author
+    ["k", "3313"],                                // the index hint (CORD-05 §6)
+    ["expiration", "1735689600"]                  // optional NIP-40, matching the link's expires_at
+  ],
+  "created_at": 1719731502,                       // NIP-59: tweaked into the past
+  "sig": "<ephemeral key signature>"
 }
 ```
