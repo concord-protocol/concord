@@ -500,7 +500,7 @@ Three kinds relays see bare, signed by ordinary (or per-link) keys.
 
 Addressable, authored by the link's dedicated `link_signer` keypair with an empty `d` identifier — the coordinate `(33301, link_signer, "")` is exactly what the link's naddr names. The `vsk` tag marks it live (`6`) or a revocation tombstone (`9`).
 
-The guard is the coordinate itself: a squatter's event is a different author, hence a different coordinate, and never matches the fetcher's filter; and since the `link_signer` secret lives only in the creator's Invite List (CORD-05 §4), a link-holder can preview and join but can never re-post, replace, or tombstone the bundle. (An earlier draft derived the signer from the token and accepted link-holder forgery as a tradeoff; the per-link keypair deletes that threat class.) A hostile bundle still can't smuggle a false owner regardless — the `community_id` self-certifies (CORD-05 §1).
+The guard is the coordinate itself: a squatter's event is a different author, hence a different coordinate, and never matches the fetcher's filter. Since the `link_signer` secret lives only in the creator's Invite List (CORD-05 §4), a link-holder can preview and join but can never re-post, replace, or tombstone the bundle. And a hostile bundle can't smuggle a false owner regardless — the `community_id` self-certifies (CORD-05 §1).
 
 ```jsonc
 // live bundle
@@ -629,7 +629,7 @@ The encrypted list's plaintext:
 
 The one event riding a **standard** NIP-59 giftwrap (CORD-05 §6): ephemeral wrap author, the recipient in the `p` tag, a kind `13` seal — not the reversed stream wrap of §1 — plus the outer `["k", "3313"]` that makes invites indexable. A recipient fetches exactly their invites with `{"kinds":[1059], "#p":["<me>"], "#k":["3313"]}`, no bulk decryption of their giftwrap inbox required. The outer tag is an unsigned hint; the rumor's kind is the authority.
 
-The rumor carries the §6.1 `CommunityInvite` bundle itself as its content — no coordinate, no token, nothing to fetch (the giftwrap already encrypts to the recipient) — validated exactly as a fetched bundle: the self-certifying `community_id`, the CORD-05 §1 bounds, `expires_at`. A key handoff, not a standing door: unrevocable once landed, absent from the Registry, and it never flips the Community Public, which is what lets a Private Community grow by personal invitation (CORD-05 §6). Nothing happens on receipt — no relay connection, no icon fetch, no Join — until the user accepts.
+The rumor carries the §6.1 `CommunityInvite` bundle itself as its content — no coordinate, no token, nothing to fetch — validated exactly as a fetched bundle: the self-certifying `community_id`, the CORD-05 §1 bounds, `expires_at`. It is a key handoff, not a standing door: unrevocable once landed, absent from the Registry, and it never flips the Community Public (CORD-05 §6). Nothing happens on receipt — no relay connection, no icon fetch, no Join — until the user accepts.
 
 ```jsonc
 {
