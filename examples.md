@@ -19,12 +19,13 @@ Conventions used throughout:
 | 20014 | Plaintext seal (Control Plane) | [§1.2](#12-kind-20014--the-plaintext-seal) |
 | 21059 | Ephemeral gift wrap | [§1.3](#13-kind-21059--the-ephemeral-wrap) |
 | 9 | Message | [§2.1](#21-kind-9--message) |
-| 7 | Reaction | [§2.2](#22-kind-7--reaction) |
-| 5 | Delete | [§2.3](#23-kind-5--delete) |
-| 3302 | Edit | [§2.4](#24-kind-3302--edit) |
-| 3310 | WebXDC peer signal | [§2.5](#25-kind-3310--webxdc-peer-signal) |
-| 23311 | Typing indicator (ephemeral) | [§2.6](#26-kind-23311--typing-indicator) |
-| 23313 | Voice presence (ephemeral) | [§2.7](#27-kind-23313--voice-presence) |
+| 1111 | Threaded reply | [§2.2](#22-kind-1111--threaded-reply) |
+| 7 | Reaction | [§2.3](#23-kind-7--reaction) |
+| 5 | Delete | [§2.4](#24-kind-5--delete) |
+| 3302 | Edit | [§2.5](#25-kind-3302--edit) |
+| 3310 | WebXDC peer signal | [§2.6](#26-kind-3310--webxdc-peer-signal) |
+| 23311 | Typing indicator (ephemeral) | [§2.7](#27-kind-23311--typing-indicator) |
+| 23313 | Voice presence (ephemeral) | [§2.8](#28-kind-23313--voice-presence) |
 | 3306 | Join / Leave | [§3.1](#31-kind-3306--join--leave) |
 | 3309 | Kick | [§3.2](#32-kind-3309--kick) |
 | 3312 | Guestbook snapshot | [§3.3](#33-kind-3312--guestbook-snapshot) |
@@ -106,13 +107,13 @@ The Control Plane **only** (CORD-02 §5). Same wrap, but the seal's `content` ho
 
 ### 1.3 Kind 21059 — the ephemeral wrap
 
-Identical structure to `1059`, but relays MUST NOT store it: broadcast to live subscribers and gone. Used only for the typing indicator (§2.6).
+Identical structure to `1059`, but relays MUST NOT store it: broadcast to live subscribers and gone. Used only for the typing indicator (§2.7).
 
 ```jsonc
 {
   "kind": 21059,
   "pubkey": "<channel_pk>",
-  "content": nip44_encrypt(conv_key, { /* kind 20013 seal around a kind 23311 or 23313 rumor, §2.6–2.7 */ }),
+  "content": nip44_encrypt(conv_key, { /* kind 20013 seal around a kind 23311 or 23313 rumor, §2.7–2.8 */ }),
   "tags": [ ["p", "<random ephemeral pubkey>"] ],
   "created_at": 1686840217,
   "sig": "<channel stream signature>"
@@ -142,7 +143,7 @@ NIP-C7 shape: the `content` is the message text. (Not NIP-29, whose messages req
 }
 ```
 
-A reply quotes the parent with a `q` tag (NIP-C7), citing the parent message's *rumor* id (never the outer wrap's, which differs per re-wrap):
+An **inline quote** embeds another message in the timeline with a `q` tag (NIP-C7), citing the quoted message's *rumor* id (never the outer wrap's, which differs per re-wrap). It stays a kind 9 and renders as an ordinary timeline row that happens to carry a quoted card:
 
 ```jsonc
 {
@@ -153,13 +154,39 @@ A reply quotes the parent with a `q` tag (NIP-C7), citing the parent message's *
     ["channel", "<channel_id>"],
     ["epoch", "0"],
     ["ms", "902"],
-    ["q", "<parent message rumor id>", "", "<parent author>"]
+    ["q", "<quoted message rumor id>", "", "<quoted author>"]
   ],
   "created_at": 1686840304
 }
 ```
 
-### 2.2 Kind 7 — Reaction
+### 2.2 Kind 1111 — Threaded reply
+
+A **threaded reply** is a distinct action from an inline quote: it lives in a thread hanging off its root, not as a top-level timeline row. It is a NIP-22 comment (kind `1111`), not a kind 9 — reusing `q` for this would conflate "quote this inline" with "reply in a thread". Uppercase `K`/`E`/`P` pin the immutable *thread root*; lowercase `k`/`e`/`p` pin the *immediate parent*. All ids are *rumor* ids (never the outer wrap's). When the parent is itself a reply, its uppercase root tags are inherited verbatim, so the root stays stable at any nesting depth:
+
+```jsonc
+{
+  "kind": 1111,
+  "pubkey": "<author>",
+  "content": "Replying in the thread!",
+  "tags": [
+    ["channel", "<channel_id>"],
+    ["epoch", "0"],
+    ["ms", "744"],
+    ["K", "9"],
+    ["E", "<thread root rumor id>", "", "<root author>"],
+    ["P", "<root author>"],
+    ["k", "9"],
+    ["e", "<immediate parent rumor id>", "", "<parent author>"],
+    ["p", "<parent author>"]
+  ],
+  "created_at": 1686840360
+}
+```
+
+Reactions, edits, and deletes target a threaded reply exactly as they target a kind-9 message (by its rumor id); the `k` tag they carry names the target's kind (`1111` for a reply, `9` for a message).
+
+### 2.3 Kind 7 — Reaction
 
 NIP-25 shape: `content` is the reaction (`"+"`, an emoji, …), tags name the reacted-to message, its author, and its kind.
 
@@ -180,7 +207,7 @@ NIP-25 shape: `content` is the reaction (`"+"`, an emoji, …), tags name the re
 }
 ```
 
-### 2.3 Kind 5 — Delete
+### 2.4 Kind 5 — Delete
 
 NIP-09 shape: `e` tags name the author's own rumors to delete, `k` their kind, `content` an optional reason. A member's delete of their own past message is honored always — even after Dissolution (CORD-02 §9).
 
@@ -202,7 +229,7 @@ Note this delete names a *rumor* id relays never saw, so it is semantic **within
 }
 ```
 
-### 2.4 Kind 3302 — Edit
+### 2.5 Kind 3302 — Edit
 
 The CORDs register the kind but don't yet pin its fields; this shape is illustrative. The `e` tag names the author's own message being edited, `content` the replacement text.
 
@@ -221,7 +248,7 @@ The CORDs register the kind but don't yet pin its fields; this shape is illustra
 }
 ```
 
-### 2.5 Kind 3310 — WebXDC peer signal
+### 2.6 Kind 3310 — WebXDC peer signal
 
 Realtime peer signaling for WebXDC apps. The CORDs register the kind but don't yet pin its payload; `content` is the app-level payload, opaque to the protocol.
 
@@ -239,7 +266,7 @@ Realtime peer signaling for WebXDC apps. The CORDs register the kind but don't y
 }
 ```
 
-### 2.6 Kind 23311 — Typing indicator
+### 2.7 Kind 23311 — Typing indicator
 
 An **ephemeral** action: same seal-and-rumor shape at the same Channel address, but the outer wrap is kind `21059` (§1.3) and the rumor kind is ephemeral-range too, so relays never store any layer of it. Presence of the event is the signal; the rumor carries nothing.
 
@@ -257,7 +284,7 @@ An **ephemeral** action: same seal-and-rumor shape at the same Channel address, 
 }
 ```
 
-### 2.7 Kind 23313 — Voice presence
+### 2.8 Kind 23313 — Voice presence
 
 Ephemeral like the typing indicator (`21059` wrap, §1.3): call heartbeats are realtime-only, nothing worth storing. The `content` is the verb; a `joined` repeats every 30 seconds carrying the broker-assigned SFU identity and the broker origin, goes stale after 90 seconds (three missed heartbeats), and a `left` omits both (CORD-07 §4).
 
