@@ -440,11 +440,11 @@ Per-`vsk` `content` payloads:
 
 ### vsk 2 — Channel metadata (CORD-03 §2)
 
-`eid` = the `channel_id`. Gated by `MANAGE_CHANNELS`. The optional `voice` flag marks a callable Channel (CORD-07), absent means false.
+`eid` = the `channel_id`. Gated by `MANAGE_CHANNELS`. Every Channel is callable (CORD-07); there is no per-Channel voice flag.
 
 ```jsonc
 { "name": "general", "private": false }
-{ "name": "lounge",  "private": false, "voice": true }
+{ "name": "lounge",  "private": false }
 ```
 
 A deletion is an edition setting the terminal flag:
