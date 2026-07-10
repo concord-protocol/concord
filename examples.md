@@ -52,8 +52,8 @@ Because the wrap reverses NIP-59 (fixed author, ephemeral `p`), delivery depends
 {
   "id": "<wrap id>",
   "kind": 1059,
-  "pubkey": "<plane's stream pubkey>",            // e.g. channel_pk, guestbook_pk (CORD-02 §4)
-  "content": nip44_encrypt(conv_key, {            // conv_key = NIP-44 self-ECDH of the stream key
+  "pubkey": "<plane's stream pubkey>",            // e.g. channel_pk, guestbook_pk, or write_pk (CORD-02 §4)
+  "content": nip44_encrypt(conv_key, {            // shared stream: self-ECDH; split stream: write_sk<->read_pk
     "id": "<seal id>",
     "kind": 20013,                                // encrypted seal
     "pubkey": "<author's real pubkey>",
@@ -84,7 +84,7 @@ Because the wrap reverses NIP-59 (fixed author, ephemeral `p`), delivery depends
 
 ### 1.2 Kind 20014 — the plaintext seal
 
-The Control Plane **only** (CORD-02 §5). Same wrap, but the seal's `content` holds the rumor's serialized JSON string rather than ciphertext (byte-verbatim, CORD-01), so a compaction can re-wrap the signed edition into a new epoch with the signature intact (CORD-06). See §4 for the full Control edition example inside this seal.
+The Control Plane **only** (CORD-02 §5). Same split read/write wrap, but the seal's `content` holds the rumor's serialized JSON string rather than ciphertext (byte-verbatim, CORD-01), so a compaction can re-wrap the signed edition into a new epoch with the signature intact (CORD-06). See §4 for the full Control edition example inside this seal.
 
 ```jsonc
 {
@@ -101,7 +101,7 @@ The Control Plane **only** (CORD-02 §5). Same wrap, but the seal's `content` ho
   }),
   "tags": [ ["p", "<random ephemeral pubkey>"] ],
   "created_at": 1686840217,
-  "sig": "<control stream signature>"
+  "sig": "<control write key signature>"
 }
 ```
 
@@ -386,7 +386,7 @@ Refounder-signed, seeding the new epoch's Guestbook after a Refounding (CORD-02 
 
 ## 4. Control Plane — kind 3308 editions
 
-Every authority action is a kind `3308` **edition** rumor inside a **plaintext seal** (§1.2) at `control_pk`. The tags carry the edition machinery (CORD-04 §1); the `content` is the entity's new state as JSON, its structure selected by `vsk`.
+Every authority action is a kind `3308` **edition** rumor inside a **plaintext seal** (§1.2) at `control_pk`, the Control Plane's current write pubkey. The tags carry the edition machinery (CORD-04 §1); the `content` is the entity's new state as JSON, its structure selected by `vsk`.
 
 The common frame:
 
@@ -443,8 +443,8 @@ Per-`vsk` `content` payloads:
 `eid` = the `channel_id`. Gated by `MANAGE_CHANNELS`. Every Channel is callable (CORD-07); there is no per-Channel voice flag.
 
 ```jsonc
-{ "name": "general", "private": false }
-{ "name": "lounge",  "private": false }
+{ "name": "general",       "private": false }
+{ "name": "announcements", "private": false, "restricted_write": true }
 ```
 
 A deletion is an edition setting the terminal flag:
@@ -511,13 +511,14 @@ Delivered at a **rekey address** derived from the *prior* secret (CORD-06 §2), 
     ["newepoch",   "3"],
     ["prevepoch",  "2"],
     ["prevcommit", "<epoch-key commitment hex, CORD-02 A.5>"],
+    ["writepk",    "<new write pubkey>"],         // write-key scopes only
     ["chunk",      "1", "2"]                      // this event is chunk 1 of 2 for the rotation
   ],
   "created_at": 1722500000
 }
 ```
 
-Each `wrapped` plaintext is exactly 72 bytes — `scope_id[32] ‖ epoch_be[8] ‖ new_key[32]` — NIP-44-encrypted under the Rotator↔recipient pairwise key; the recipient finds their blob by computing their `locator` (CORD-06 §2) and verifies the inner scope and epoch against the tags before accepting the key.
+Each `wrapped` plaintext is exactly 72 bytes — `scope_id[32] ‖ epoch_be[8] ‖ new_key[32]` — NIP-44-encrypted under the Rotator<->recipient pairwise key; the recipient finds their blob by computing their `locator` (CORD-06 §2) and verifies the inner scope and epoch against the tags before accepting the key. For write-key scopes, readers who do not receive a blob still learn the next public write coordinate from `writepk`.
 
 ## 6. Outside the wrap
 
@@ -553,8 +554,13 @@ The encrypted bundle's plaintext (CORD-05 §1):
   "owner_salt": "<hex>",                          // verify: community_id == sha256("concord/community" || owner || salt)
   "community_root": "<hex>",
   "root_epoch": 0,
+  "control_write_pk": "<hex>",
+  "control_write_epoch": 0,
+  "control_write_key": "<hex>",                  // optional: only for Control writers
   "channels": [
-    { "id": "<channel_id>", "key": "<hex>", "epoch": 1, "name": "testers" }
+    { "id": "<channel_id>", "key": "<hex>", "epoch": 1, "name": "testers" },
+    { "id": "<channel_id>", "key": "<hex>", "epoch": 0, "name": "announcements",
+      "write_pk": "<hex>", "write_epoch": 0, "write_key": "<hex>" } // write_key only for writers
   ],
   "relays": ["wss://jskitty.com/nostr", "wss://relay.ditto.pub"],
   "name": "Vector",
@@ -614,7 +620,7 @@ The encrypted list's plaintext:
 }
 ```
 
-Join material is the bundle's membership subset: `community_id, owner, owner_salt, community_root, root_epoch, channels, relays, name` — never the icon, never the link fields.
+Join material is the bundle's membership subset: `community_id, owner, owner_salt, community_root, root_epoch, control_write_pk, control_write_epoch, channels, relays, name`, plus any write secrets the member should retain — never the icon, never the link fields.
 
 ### 6.3 Kind 13303 — Invite List (CORD-05 §4)
 
@@ -663,11 +669,11 @@ The rumor carries the §6.1 `CommunityInvite` bundle itself as its content — n
   "id": "<wrap id>",
   "kind": 1059,
   "pubkey": "<ephemeral pubkey, single-use>",
-  "content": nip44_encrypt(ephemeral↔recipient, {
+  "content": nip44_encrypt(ephemeral<->recipient, {
     "id": "<seal id>",
     "kind": 13,                                   // standard NIP-59 seal
     "pubkey": "<inviter's real pubkey>",
-    "content": nip44_encrypt(inviter↔recipient, {
+    "content": nip44_encrypt(inviter<->recipient, {
       "id": "<rumor id>",
       "kind": 3313,
       "pubkey": "<inviter's real pubkey>",
