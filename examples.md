@@ -439,6 +439,7 @@ Per-`vsk` `content` payloads:
   "name": "Vector",
   "description": "Private messaging, no compromises.",
   "relays": ["wss://jskitty.com/nostr", "wss://asia.vectorapp.io/nostr"],
+  "av_brokers": ["https://av.vectorapp.io", "https://broker.example"],
   "icon":   { "url": "https://blossom.example/…", "key": "<hex>", "nonce": "<hex>", "hash": "<sha256 hex>" },
   "banner": { "url": "https://blossom.example/…", "key": "<hex>", "nonce": "<hex>", "hash": "<sha256 hex>" },
   "message_expiration": 2592000,
