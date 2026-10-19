@@ -1051,7 +1051,7 @@ The encrypted bundle's plaintext (CORD-05 §1):
   "icon": { "url": "https://blossom.example/…", "key": "<hex>", "nonce": "<hex>", "hash": "<sha256 hex>" },
   "expires_at": 1735689600000,                    // optional, unix ms
   "creator_npub": "<creator pubkey>",             // optional attribution
-  "label": "Reddit"                               // optional attribution
+  "label": "Reddit"                               // optional attribution, at most 64 bytes
 }
 ```
 
@@ -1148,12 +1148,12 @@ The encrypted list's plaintext:
       "url": "https://vectorapp.io/invite/<naddr>#<fragment>",
       "label": "Reddit",                          // optional
       "created_at": 1719800000,
-      "expires_at": 1722400000,                   // optional
+      "expires_at": 1722400000,                   // optional, unix seconds like created_at (the bundle's is ms)
       "epoch": 4                                  // optional, the root epoch it was minted at; a Severing Refounding retires links below its own
     }
   ],
   "tombstones": [
-    { "token": "<hex>", "community_id": "<hex>" }
+    { "token": "<hex>", "community_id": "<hex>", "expires_at": 1722400000 }   // expires_at optional, the retired link's
   ]
 }
 ```
