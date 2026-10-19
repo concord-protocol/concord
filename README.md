@@ -34,11 +34,11 @@ Concord is defined by a series of **CORD** documents. Like Nostr's NIPs, each is
 |---|---|---|
 | [01](01.md) | Private Streams | The base primitive: a shared-key stream of NIP-59 giftwraps, readable by anyone holding the key, invisible to everyone else. |
 | [02](02.md) | Communities | Ties channels into one membership and authority model. Defines the self-certifying `community_id`, the `community_root` access key, the staff-held `control_root` write key, epochs, and the Control/Chat/Guestbook planes. |
-| [03](03.md) | Channels | Public and Private rooms, each its own sealed plane with its own key derived from the community. |
-| [04](04.md) | Roles | Granular, ranked, owner-rooted permissions (Admin, Mod, custom) — validated by every client, enforced by rejection, not by a server. |
+| [03](03.md) | Channels | Public and Private rooms filed into Categories, each its own sealed plane: a Public one keyed by the community, a Private one by a key of its own. A restricted Channel takes posts only from its writers. |
+| [04](04.md) | Roles | Granular, ranked, owner-rooted permissions (Admin, Mod, custom), tuned per Channel by overwrites — validated by every client, enforced by rejection, not by a server. |
 | [05](05.md) | Invites | Shareable links whose keys live in an encrypted bundle on relays; the link carries only a locator and an unlock token, so invites revoke without re-keying. Or skip the URL: giftwrap the keys straight to an npub as a Direct Invite. |
 | [06](06.md) | Rekeys & Refoundings | Post-removal secrecy: rotate a channel's key to cut off a removed member, or re-found the whole community at a new epoch to ban someone for real. |
-| [07](07.md) | Audio/Video | Voice, video, and screenshare in any channel: a blind token broker and an SFU that only ever forward ciphertext, membership proven by key possession, participants verified by signed presence. |
+| [07](07.md) | Audio/Video | Voice, video, and screenshare in any channel: peer to peer over iroh, or a blind token broker and an SFU that only ever forward ciphertext, membership proven by key possession, participants verified by signed presence. |
 | [08](08.md) | Disappearing Messages | One staff-set timer per community: every channel's messages expire via NIP-40 — hidden by clients, purged from stores, deleted by relays. The control plane never expires. |
 
 For a non-normative, at-a-glance reference, [examples.md](examples.md) shows example JSON for every event kind in the registry (CORD-02, Appendix B).
