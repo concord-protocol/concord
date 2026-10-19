@@ -590,7 +590,7 @@ The common frame:
   "pubkey": "<actor's real pubkey>",
   "content": "<the entity's new state, per-vsk below, as a JSON string>",
   "tags": [
-    ["vsk", "1"],                                 // entity type (registry below)
+    ["vsk", "3"],                                 // entity type (registry below)
     ["eid", "<entity id, 32-byte hex>"],          // the stable coordinate
     ["ev",  "4"],                                 // this edition's version, climbs from 1
     ["ep",  "<prev edition hash>"],               // chain link, absent on the first edition
@@ -916,7 +916,7 @@ A base rotation (a Refounding) names the all-zero scope and cites the Grant its 
 
 ### 5.2 Deliveries
 
-A 3303 carrying `["delivery", "<form>"]` hands keys to members who are owed them (CORD-03 §5, CORD-06 §1) and is never a rotation: it advances no epoch, and nothing it omits removes anyone. Deliveries ride a Channel's **access plane**, `group_key("concord/channel-access", community_root, channel_id, root_epoch)`, under an encrypted seal, their content the same blob array, with no `prevepoch`, `prevcommit` or `chunk`. Each blob's `locator` is computed as a rotation's (CORD-06 §2), from the deliverer and recipient at the delivery's scope and epoch, so anyone can see who is already served. A delivery carries at most 80 blobs, 48 when it hands out certificates; a reader accepts up to 120, and treats a `delivery` form or blob width it doesn't understand as no removal verdict.
+A 3303 carrying `["delivery", "<form>"]` hands keys to members who are owed them (CORD-03 §5, CORD-06 §1) and is never a rotation: it advances no epoch, and nothing it omits removes anyone. Deliveries ride a Channel's **access plane**, `group_key("concord/channel-access", community_root, channel_id, root_epoch)`, under an encrypted seal, their content the same blob array, with no `prevepoch`, `prevcommit` or `chunk`. Each blob's `locator` is computed as a rotation's (CORD-06 §2), from the deliverer and recipient at the delivery's scope and epoch, so anyone can see who is already served. A delivery carries at most 80 blobs, 60 of the 104-byte history form and 48 when it hands out certificates; a reader accepts up to 120, and treats a `delivery` form or blob width it doesn't understand as no removal verdict.
 
 An **access** delivery of a Private Channel's current key, its blob the 72-byte Channel form, `channel_id[32] ‖ epoch_be[8] ‖ channel_key[32]`:
 
@@ -971,7 +971,7 @@ A **certifier** delivery hands the writer epoch's certifier secret to each `MANA
 }
 ```
 
-A **history** delivery hands a member holding READ_MESSAGE_HISTORY one earlier epoch, read-only: its Chat Plane address and conversation key, never the secret, so they can read that epoch but never sign into it. One event per epoch, each blob 104 bytes, `history_scope[32] ‖ epoch_be[8] ‖ address[32] ‖ conv_key[32]`:
+A **history** delivery hands a member holding READ_MESSAGE_HISTORY an earlier epoch, read-only: its Chat Plane address and conversation key, never the secret, so they can read that epoch but never sign into it. Each event carries one epoch, each blob 104 bytes, `history_scope[32] ‖ epoch_be[8] ‖ address[32] ‖ conv_key[32]`:
 
 ```jsonc
 {
@@ -1119,7 +1119,7 @@ The encrypted fragment's plaintext. Every 32-byte value is unpadded base64url at
 }
 ```
 
-Join material is the bundle's membership subset: `owner, owner_salt, community_root, root_epoch, control_pk, channels, relays, name`, plus `control_root` when held (CORD-02 §2) — never the icon, never the link fields. Embedded in an entry it omits `community_id`, inheriting the entry's; standalone (a CORD-06 §1 dissolution payload) it keeps it.
+Join material is the bundle's membership subset: `owner, owner_salt, community_root, root_epoch, control_pk, channels, relays, name`, plus `control_root` when held (CORD-02 §2) and an optional `rev` (CORD-02 §8) — never the icon, never the link fields. Embedded in an entry it omits `community_id`, inheriting the entry's; standalone (a CORD-06 §1 dissolution payload) it keeps it.
 
 ### 6.3 Kind 13303 — Invite List (CORD-05 §4)
 
@@ -1148,7 +1148,8 @@ The encrypted list's plaintext:
       "url": "https://vectorapp.io/invite/<naddr>#<fragment>",
       "label": "Reddit",                          // optional
       "created_at": 1719800000,
-      "expires_at": 1722400000                    // optional
+      "expires_at": 1722400000,                   // optional
+      "epoch": 4                                  // optional, the root epoch it was minted at; a Severing Refounding retires links below its own
     }
   ],
   "tombstones": [
