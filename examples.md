@@ -49,7 +49,7 @@ Conventions used throughout:
 | 3308 · vsk 17 | Channel sync | [§4 vsk 17](#vsk-17--channel-sync-cord-04-8) |
 | 3308 · vsk 18 | Writers ledger | [§4 vsk 18](#vsk-18--writers-ledger-cord-03-1) |
 | 3308 · vsk 10 | Dissolved tombstone | [§4 vsk 10](#vsk-10--dissolved-tombstone-cord-02-9) |
-| 3308 · vsk 2–18 | Byte-exact contents, real values | [§4.1](#41-byte-exact-contents) |
+| 3308 · vsk 2, 3, 4, 13–18 | Byte-exact contents, real values | [§4.1](#41-byte-exact-contents) |
 | 3303 | Rekey blobs (rotations) | [§5.1](#51-rotations) |
 | 3303 | Key deliveries: access, writer, certifier, history | [§5.2](#52-deliveries) |
 | 3320 | Writer certificate preimage (never published) | [§5.3](#53-kind-3320--writer-certificate-preimage) |
@@ -58,7 +58,7 @@ Conventions used throughout:
 | 13303 | Invite List | [§6.3](#63-kind-13303--invite-list-cord-05-4) |
 | 3313 | Direct invite (standard NIP-59 wrap) | [§7](#7-kind-3313--direct-invite) |
 
-Retired kinds (`3300, 3301, 3304, 3305, 3307, 3311, 23308`) have no examples: their numbers are burned, never reused (CORD-02, Appendix B).
+Retired kinds (`3300, 3301, 3304, 3305, 3307, 3311, 13302, 23308`) have no examples: their numbers are burned, never reused (CORD-02, Appendix B).
 
 ## 1. The envelope
 
@@ -184,7 +184,7 @@ An **inline quote** embeds another message in the timeline with a `q` tag (NIP-C
 }
 ```
 
-A **Role mention** names the Role in the text as `@` and its name, with a `["role", "<role_id>"]` tag beside it, at most 16 to a message (CORD-03 §3), so a client that doesn't know the tag still reads who was meant. Holders are notified when the Role is `mentionable`, or when the author holds MENTION_EVERYONE in the Channel; otherwise it renders as plain text, and a tag counts only beside text naming its Role (CORD-04 §8):
+A **Role mention** names the Role in the text as `@` and its name, with a `["role", "<role_id>"]` tag beside it, at most 16 to a message (CORD-03 §3), so a client that doesn't know the tag still reads who was meant. Holders are notified when the Role is `mentionable`, or when the author holds MENTION_EVERYONE server-wide; otherwise it renders as plain text, and a tag counts only beside text naming its Role (CORD-04 §8):
 
 ```jsonc
 {
@@ -537,8 +537,8 @@ Refounder-signed, seeding the new epoch's Guestbook after a Refounding (CORD-02 
   "pubkey": "<refounder>",
   "content": "[\"<member pubkey>\", \"<member pubkey>\", \"<member pubkey>\"]",
   "tags": [
-    ["ms", "0"],
-    ["snap", "<snapshot id>", "1", "2"]           // chunk 1 of 2
+    ["snap", "<snapshot id>", "1", "2"],          // chunk 1 of 2, 1-based
+    ["ms", "0"]
   ],
   "created_at": 1722500000
 }
@@ -546,7 +546,7 @@ Refounder-signed, seeding the new epoch's Guestbook after a Refounding (CORD-02 
 
 ### 3.4 Kind 3314 — Timeout
 
-Signed by a member holding `MODERATE_MEMBERS` server-wide (never through a Channel's overwrite) who strictly outranks the target, citing their Grant in `vac` (absent when the owner acts; CORD-04 §8). `until` is unix seconds, at most 28 days past the rumor's own time; one further out reads as exactly that. While it runs, readers collapse the target's posts dated or edited inside the window, their client stops offering composition, edits and reactions, and calls treat them as unable to speak. Per target, the newest Timeout by millisecond time decides, the lower rumor id breaking a tie, among those whose signers the Roster lets time the target out.
+Signed by a member holding `MODERATE_MEMBERS` server-wide (never through a Channel's overwrite) who strictly outranks the target, citing their Grant in `vac` (absent when the owner acts; CORD-04 §8). `until` is unix seconds, at most 28 days past the rumor's own time; one further out reads as exactly that. While it runs, readers collapse the target's posts dated or edited inside the window, their client stops offering composition, edits and reactions, and calls treat them as unable to speak or show video. Per target, the newest Timeout by millisecond time decides, the lower rumor id breaking a tie, among those whose signers the Roster lets time the target out.
 
 ```jsonc
 // Timeout: silences the target for an hour
@@ -687,6 +687,12 @@ On Roles v2 a **Private Channel seals its metadata** under the Channel's key, le
   }) }
 ```
 
+A Public Channel made private (CORD-03 §2): its first sealed edition, after the rotation that delivered its key at `channel_epoch` 1, naming when it stopped being public:
+
+```jsonc
+{ "epoch": "1", "private": true, "sealed": nip44_encrypt(channel_conv_key, { "creator": "<converter pubkey>", "name": "general", "prev": "<the public head's hash>", "public_until": 1722600000000 }) }
+```
+
 A born-private Channel's first edition, at `channel_epoch` 1, its key already delivered by a Channel rotation (CORD-03 §2):
 
 ```jsonc
@@ -701,7 +707,7 @@ Deleting a Private Channel takes only the bit, never the key: the head's sealed 
 
 ### vsk 3 — Grant (CORD-04 §2)
 
-`eid` = `grant_locator(community_id, member)` (CORD-02 A.6). Honored only if the signer outranks every Role handed out; empty `role_ids` is a revoke. A staff-making Grant also delivers the Control Plane write secret in `control_wrap` (CORD-04 §3): NIP-44 ciphertext under the granter↔member pairwise key, its plaintext the fixed-width 40 bytes `epoch_be[8] ‖ control_root[32]`, adopted only if the secret derives to the recipient's held `control_pk` at that epoch. Every other reader treats it as opaque bytes.
+`eid` = `grant_locator(community_id, member)` (CORD-02 A.6). Honored only if the signer outranks every Role handed out; empty `role_ids` is a revoke. A staff-making Grant also delivers the Control Plane write secret in `control_wrap` (CORD-04 §3): NIP-44 ciphertext under the granter↔member pairwise key, its plaintext the padded base64 of the fixed-width 40 bytes `epoch_be[8] ‖ control_root[32]`, adopted only if the secret derives to the recipient's held `control_pk` at that epoch. Every other reader treats it as opaque bytes.
 
 ```jsonc
 {
@@ -1158,17 +1164,17 @@ The encrypted fragment's plaintext. Every 32-byte value is unpadded base64url at
   "frags": 2,                                        // how many fragments this List has
   "entries": [
     {
-      "community_id": "PxpVK3nQ7sB1yTfWm4dLxZ0aRcE9uHgKjNvOpQrStUv",
+      "community_id": "PxpVK3nQ7sB1yTfWm4dLxZ0aRcE9uHgKjNvOpQrStUs",
       "current": {
         // community_id omitted — inherited from the entry
-        "owner":          "nC7hQ2eRtYuIoPaSdFgHjKlZxCvBnM1qW3eR5tY7uI9",
-        "owner_salt":     "qhEwR9tYuIoPaSdFgHjKlZxCvBnM1qW3eR5tY7uI0oP",
+        "owner":          "nC7hQ2eRtYuIoPaSdFgHjKlZxCvBnM1qW3eR5tY7uI8",
+        "owner_salt":     "qhEwR9tYuIoPaSdFgHjKlZxCvBnM1qW3eR5tY7uI0oM",
         "community_root": "d70Xa1QwErTyUiOpAsDfGhJkLzXcVbNm2Qw4Er6Ty8U",
         "root_epoch":     3,
-        "control_pk":     "DU8vB4nM6qW1eR3tY5uI7oP9aS0dF2gH4jK6lZ8xC0v",
+        "control_pk":     "DU8vB4nM6qW1eR3tY5uI7oP9aS0dF2gH4jK6lZ8xC0s",
         "channels": [
-          { "id":  "Ch1dQwErTyUiOpAsDfGhJkLzXcVbNm2Qw4Er6Ty8U0i",
-            "key": "K3yAsDfGhJkLzXcVbNm1Qw2Er3Ty4Ui5Op6As7Df8Gh",
+          { "id":  "Ch1dQwErTyUiOpAsDfGhJkLzXcVbNm2Qw4Er6Ty8U0g",
+            "key": "K3yAsDfGhJkLzXcVbNm1Qw2Er3Ty4Ui5Op6As7Df8Gg",
             "epoch": 2, "name": "staff" }
         ],
         "relays": ["wss://relay.example.com"],
@@ -1184,7 +1190,7 @@ The encrypted fragment's plaintext. Every 32-byte value is unpadded base64url at
 }
 ```
 
-Join material is the bundle's membership subset: `owner, owner_salt, community_root, root_epoch, control_pk, channels, relays, name`, plus `control_root` when held (CORD-02 §2) and an optional `rev` (CORD-02 §8) — never the icon, never the link fields. Embedded in an entry it omits `community_id`, inheriting the entry's; standalone (a CORD-06 §1 dissolution payload) it keeps it.
+Join material is the bundle's membership subset: `owner, owner_salt, community_root, root_epoch, control_pk, channels, relays, name`, plus `control_root` when held (CORD-02 §2) and an optional `rev` (CORD-02 §8) — never the icon, never the link fields. Embedded in an entry it omits `community_id`, inheriting the entry's; no standalone form exists today.
 
 ### 6.3 Kind 13303 — Invite List (CORD-05 §4)
 
