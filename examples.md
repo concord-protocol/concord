@@ -8,7 +8,8 @@ Conventions used throughout:
 - `nip44_encrypt(key, {...})` stands for the NIP-44 ciphertext of the serialized inner event — shown structurally so the nesting is readable.
 - Rumors (the innermost events) are **unsigned** and carry no `sig`; the seal carries the author's real signature (CORD-01).
 - `["ms", "<0..999>"]` is the sub-second remainder; true event time is `created_at * 1000 + ms` (CORD-02 §4).
-- Examples are illustrative, not verifiable test vectors: ids, signatures, and derived addresses are placeholders, not real derivations.
+- Examples are illustrative, not verifiable test vectors: ids, signatures, and derived addresses are placeholders, not real derivations, except where a section says it holds real values (§4.1, §5.3, and CORD-02 A.6's coordinate table).
+- A reader finds a tag by name, and tag order carries no meaning except where a CORD says (the first `wcert`, the first `mint`); Vector appends `ms` last. JSON key order and whitespace carry none either: an edition's hash covers its `content` bytes as carried (CORD-04 §1).
 
 ## Contents
 
@@ -48,6 +49,7 @@ Conventions used throughout:
 | 3308 · vsk 17 | Channel sync | [§4 vsk 17](#vsk-17--channel-sync-cord-04-8) |
 | 3308 · vsk 18 | Writers ledger | [§4 vsk 18](#vsk-18--writers-ledger-cord-03-1) |
 | 3308 · vsk 10 | Dissolved tombstone | [§4 vsk 10](#vsk-10--dissolved-tombstone-cord-02-9) |
+| 3308 · vsk 2–18 | Byte-exact contents, real values | [§4.1](#41-byte-exact-contents) |
 | 3303 | Rekey blobs (rotations) | [§5.1](#51-rotations) |
 | 3303 | Key deliveries: access, writer, certifier, history | [§5.2](#52-deliveries) |
 | 3320 | Writer certificate preimage (never published) | [§5.3](#53-kind-3320--writer-certificate-preimage) |
@@ -400,7 +402,7 @@ Posted by staff after changing the Community's disappearing-messages timer (CORD
 
 ### 2.10 Kind 23314 — Voice directive
 
-A moderator's order in a call (CORD-07 §7), ephemeral like presence (`21059` wrap, §1.3) and at the read address like it. Signed by a member holding MUTE_MEMBERS, DEAFEN_MEMBERS or MOVE_MEMBERS, as the verb needs, who strictly outranks the target, citing their Grant (`vac`, absent when the owner acts). `do` is one of `mute`, `unmute`, `deafen`, `undeafen`, `move`, `disconnect`; a `move` names its destination in `to`. Every receiver honors it while both stay in the call; per target, the newest of each pair (mute and unmute, deafen and undeafen) by millisecond time decides, and a tie keeps them muted or deafened. Since nothing stores it, the moderator's client re-asserts its standing directives whenever the target rejoins.
+A moderator's order in a call (CORD-07 §7), ephemeral like presence (`21059` wrap, §1.3) and at the read address like it. Signed by a member holding MUTE_MEMBERS, DEAFEN_MEMBERS or MOVE_MEMBERS, as the verb needs, who strictly outranks the target, citing their Grant (`vac`, absent when the owner acts). `do` is one of `mute`, `unmute`, `deafen`, `undeafen`, `move`, `disconnect`; a `move` names its destination in `to`. Every receiver honors it while the target stays in the call; per target, the newest of each pair (mute and unmute, deafen and undeafen) by millisecond time decides, and a tie keeps them muted or deafened. Since nothing stores it, the moderator's client re-asserts its standing directives whenever the target rejoins.
 
 ```jsonc
 // Mute
@@ -491,8 +493,8 @@ Self-signed; the `content` is the verb. A Join MAY carry invite attribution echo
   "pubkey": "<member>",
   "content": "join",
   "tags": [
-    ["ms", "128"],
-    ["invite", "<creator pubkey>", "Reddit"]      // optional, Joins only
+    ["invite", "<creator pubkey>", "Reddit"],     // optional, Joins only
+    ["ms", "128"]
   ],
   "created_at": 1719800000
 }
@@ -517,9 +519,9 @@ Admin-signed, names its target, and cites the Grant it acts under (the `vac`, CO
   "pubkey": "<admin>",
   "content": "",
   "tags": [
-    ["ms", "301"],
     ["p", "<target pubkey>"],
-    ["vac", "<grant eid>", "<grant version>", "<grant edition hash>"]
+    ["vac", "<grant eid>", "<grant version>", "<grant edition hash>"],
+    ["ms", "301"]
   ],
   "created_at": 1722410000
 }
@@ -658,7 +660,13 @@ Four optional protocol fields, round-tripped by every editor:
   "view": "voice" }                               // "chat" (the default), "forum" or "voice"; an unknown view reads as "chat"
 ```
 
-A deletion is an edition setting the terminal flag:
+A Channel an older client marked voice, read as `"view": "voice"` while `view` is absent (CORD-03 §2):
+
+```jsonc
+{ "name": "lounge", "private": false, "voice": true }
+```
+
+A deletion is an edition setting the terminal flag, terminal over the whole chain:
 
 ```jsonc
 { "name": "general", "private": false, "deleted": true }
@@ -674,9 +682,15 @@ On Roles v2 a **Private Channel seals its metadata** under the Channel's key, le
     "topic": "Mods only",
     "position": "B",
     "category": "<category_id hex>",
-    "creator": "<creator pubkey>",                // let in while they hold MANAGE_CHANNELS (CORD-04 §8)
+    "creator": "<creator pubkey>",                // optional: let in while they hold MANAGE_CHANNELS (CORD-04 §8)
     "prev": "<this edition's ep hex>"             // null on a first edition; a seal naming another prev reads as unreadable
   }) }
+```
+
+A born-private Channel's first edition, at `channel_epoch` 1, its key already delivered by a Channel rotation (CORD-03 §2):
+
+```jsonc
+{ "epoch": "1", "private": true, "sealed": nip44_encrypt(channel_conv_key, { "creator": "<creator pubkey>", "name": "staff", "prev": null }) }
 ```
 
 Deleting a Private Channel takes only the bit, never the key: the head's sealed content republished verbatim beside the terminal flag, exempt from the `prev` check:
@@ -758,7 +772,7 @@ Caps: 25 entries and 32,768 bytes of `content`, judged on the carried bytes — 
 A deletion is terminal: it leaves every holder at once, frees the slot, and the `role_id` is never reused.
 
 ```jsonc
-{ "role_id": "<role_id hex>", "deleted": true }
+{ "deleted": true, "role_id": "<role_id hex>" }
 ```
 
 **`@everyone`** sits at `eid` = `everyone_locator(community_id)` (CORD-02 A.6): what every member holds before any Role, beneath every Role, never deleted. The owner's first edition here moves the Community onto Roles v2.
@@ -772,7 +786,7 @@ A deletion is terminal: it leaves every holder at once, frees the slot, and the 
 
 ### vsk 14 — ACL overwrite (CORD-04 §8)
 
-One overwrite per (scope, target): `eid` = `acl_locator(community_id, scope, kind, target)` (CORD-02 A.6), the scope a Channel's or a Category's id. An overwrite touches only channel permissions (bit 13 up) and `MANAGE_MESSAGES`; any other bit is ignored. Gated by `MANAGE_ROLES`, judged by downward support: the signer's Roles ranked strictly above the target must hold `MANAGE_ROLES` and every bit it allows or denies.
+One overwrite per (scope, target): `eid` = `acl_locator(community_id, scope, kind, target)` (CORD-02 A.6), the scope a Channel's or a Category's id. An overwrite touches only `MANAGE_MESSAGES` and the channel permissions, bits 13 to 26 (the mask `134209568`); a reader clears any other bit as it parses. Gated by `MANAGE_ROLES`, judged by downward support: the signer's Roles ranked strictly above the target must hold `MANAGE_ROLES` and every bit it allows or denies.
 
 ```jsonc
 // @everyone may read #announcements but not post there, which restricts it (§2.11)
@@ -783,6 +797,10 @@ One overwrite per (scope, target): `eid` = `acl_locator(community_id, scope, kin
 
 // One member, on a Category: no reactions in any Channel synced to it
 { "scope": "<category_id hex>", "target": { "kind": "member", "id": "<member pubkey>" }, "allow": "0", "deny": "131072" }   // 1<<17 ADD_REACTIONS
+
+// Let a Role into a Private Channel, and clear an overwrite (allowing and denying nothing)
+{ "scope": "<channel_id hex>", "target": { "kind": "role", "id": "<role_id hex>" }, "allow": "8192", "deny": "0" }        // 1<<13 VIEW_CHANNEL
+{ "scope": "<channel_id hex>", "target": { "kind": "everyone" }, "allow": "0", "deny": "0" }
 ```
 
 ### vsk 15 — Category (CORD-03 §4)
@@ -867,6 +885,53 @@ The `eid` is the `community_id`, and a verifier MUST check it: `dissolved_pk` de
 ```
 
 Remaining `vsk` values carry no edition: `5` and `12` are reserved, `6`/`9` are claimed by the addressable invite marker (§6.1), `7` is retired.
+
+### 4.1 Byte-exact contents
+
+Unlike the rest of this section, these are real values: the exact `content` bytes Vector writes, pinned by its test `contents_match_the_spec_vectors`. Inputs: Channel or overwrite scope `02`×32, `role_id` `05`×32, Category `06`×32, edition hashes `07`×32 and `08`×32, and members by secret key: member `531fe606…fe337` (secret `03`×32); in the ledger, writer `f76a39d0…dde6e` (`0a`×32), minter `552c630b…12a84` (`0b`×32), certifier `0f0fb9a2…2d177` (`0c`×32), epoch 1's retired address from `0d`×32 and its certifier from `0e`×32, and epoch 2's retired address from `0f`×32. CORD-02 A.6's table instead takes `03`×32 as the member's x-only bytes directly. A writer of another client may order keys differently; these are what a reader can byte-compare against Vector.
+
+Role, its deletion, and `@everyone` with one legacy Channel (vsk 13):
+```json
+{"role_id":"0505050505050505050505050505050505050505050505050505050505050505","name":"Moderators","rank":"M","permissions":"67108904","color":15158332,"display":true,"mentionable":true}
+{"deleted":true,"role_id":"0505050505050505050505050505050505050505050505050505050505050505"}
+{"permissions":"4186112","legacy":["0202020202020202020202020202020202020202020202020202020202020202"]}
+```
+Grant (vsk 3) and Banlist (vsk 4):
+```json
+{"member":"531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337","role_ids":["0505050505050505050505050505050505050505050505050505050505050505"]}
+["531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337"]
+```
+Overwrites (vsk 14): `@everyone` denied SEND_MESSAGES, a Role allowed it, a member denied ADD_REACTIONS:
+```json
+{"scope":"0202020202020202020202020202020202020202020202020202020202020202","target":{"kind":"everyone"},"allow":"0","deny":"16384"}
+{"scope":"0202020202020202020202020202020202020202020202020202020202020202","target":{"kind":"role","id":"0505050505050505050505050505050505050505050505050505050505050505"},"allow":"16384","deny":"0"}
+{"scope":"0202020202020202020202020202020202020202020202020202020202020202","target":{"kind":"member","id":"531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337"},"allow":"0","deny":"131072"}
+```
+Sync and unsync (vsk 17):
+```json
+{"channel":"0202020202020202020202020202020202020202020202020202020202020202","sync":"0606060606060606060606060606060606060606060606060606060606060606"}
+{"channel":"0202020202020202020202020202020202020202020202020202020202020202"}
+```
+Tenure (vsk 16):
+```json
+{"member":"531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337","sealed":[{"rank":"D","permissions":"2066","heads":["0707070707070707070707070707070707070707070707070707070707070707","0808080808080808080808080808080808080808080808080808080808080808"]}]}
+```
+Channels (vsk 2): plain, with every optional field Vector moves, a voice Channel, and a deletion:
+```json
+{"name":"general","private":false}
+{"name":"announcements","private":false,"category":"0606060606060606060606060606060606060606060606060606060606060606","position":"M","topic":"Release notes"}
+{"name":"lounge","private":false,"position":"N","view":"voice"}
+{"name":"general","private":false,"deleted":true}
+```
+Category and its deletion (vsk 15):
+```json
+{"name":"Staff","position":"B"}
+{"deleted":true}
+```
+Writers ledger (vsk 18), a writer entry, a stop recording a departure, a reopen, and two retired windows:
+```json
+{"channel":"0202020202020202020202020202020202020202020202020202020202020202","ledger":[{"at":1722500000000,"by":"552c630b64b54bf50210c9e253d38bd4949c72e22873500f6285c2bede312a84","certifier":"0f0fb9a244ad31a369ee02b7abfbbb0bfa3812b9a39ed93346d03d67d412d177","epoch":3,"root":2,"writer":"f76a39d05686e34a4420897e359371836145dd3973e3982568b60f8433adde6e"},{"at":1722600000000,"from":1722550000000,"stop":"531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337"},{"at":1722700000000,"open":true}],"retired":[[1,"2f1b310f4c065331bc0d79ba4661bb9822d67d7c4a1b0a1892e1fd0cd23aa68d",1719800000000,1720000000000,"99c2aa85d2b21a62f396907a802a58e521dafd5bddaccbd72786eea189bc4dc9"],[2,"1a7a569e91dbf60581509c7fc946d1003b60c7dee85299538db6353538d59574",1720100000000,1721000000000]]}
+```
 
 ## 5. Rekeys — kind 3303
 
