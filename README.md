@@ -40,6 +40,7 @@ Concord is defined by a series of **CORD** documents. Like Nostr's NIPs, each is
 | [06](06.md) | Rekeys & Refoundings | Post-removal secrecy: rotate a channel's key to cut off a removed member, or re-found the whole community at a new epoch to ban someone for real. |
 | [07](07.md) | Audio/Video | Voice, video, and screenshare in any channel: a blind token broker and an SFU that only ever forward ciphertext, membership proven by key possession, participants verified by signed presence. |
 | [08](08.md) | Disappearing Messages | One staff-set timer per community: every channel's messages expire via NIP-40 — hidden by clients, purged from stores, deleted by relays. The control plane never expires. |
+| [09](09.md) | Blinded Mention Locators | Optional relay-indexed hints for exact background mention notifications without exposing recipient pubkeys or Channel keys. |
 
 For a non-normative, at-a-glance reference, [examples.md](examples.md) shows example JSON for every event kind in the registry (CORD-02, Appendix B).
 
