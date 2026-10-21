@@ -34,6 +34,7 @@ Conventions used throughout:
 | 3309 | Kick | [§3.2](#32-kind-3309--kick) |
 | 3312 | Guestbook snapshot | [§3.3](#33-kind-3312--guestbook-snapshot) |
 | 3314 | Timeout | [§3.4](#34-kind-3314--timeout) |
+| 3315 | Nickname | [§3.5](#35-kind-3315--nickname) |
 | 3308 | Control edition, the common frame (per `vsk`) | [§4](#4-control-plane--kind-3308-editions) |
 | 3308 · vsk 0 | Community metadata | [§4 vsk 0](#vsk-0--community-metadata-cord-02-6) |
 | 3308 · vsk 1 | Role, legacy | [§4 vsk 1](#vsk-1--role-legacy-cord-04-2) |
@@ -480,7 +481,7 @@ A post that the ledger, Roster and memberlist don't stand behind is **held** rat
 
 ## 3. Guestbook Plane rumors
 
-Encrypted seals (§1.1) at `guestbook_pk` (CORD-02 §5). The Guestbook coalesces flat — one final state per npub, latest wins by millisecond time, ties broken by the lower rumor id. Timeouts (§3.4) coalesce the same way, apart from membership: they silence a member without changing who is one.
+Encrypted seals (§1.1) at `guestbook_pk` (CORD-02 §5). The Guestbook coalesces flat — one final state per npub, latest wins by millisecond time, ties broken by the lower rumor id. Timeouts (§3.4) and Nicknames (§3.5) coalesce the same way, apart from membership: they silence or name a member without changing who is one.
 
 ### 3.1 Kind 3306 — Join / Leave
 
@@ -579,6 +580,39 @@ Signed by a member holding `MODERATE_MEMBERS` server-wide (never through a Chann
 ```
 
 A Refounding starts a fresh Guestbook, so its Refounder re-issues in its own name each running Timeout it could issue itself, dated as first issued; the rest lapse for anyone reading only the new epoch.
+
+### 3.5 Kind 3315 — Nickname
+
+What the target goes by in this Community (CORD-04 §10), at most 32 characters with no control characters; `""` clears it. A member's own takes `CHANGE_NICKNAME` and cites nothing. Anyone else's takes `MANAGE_NICKNAMES` server-wide and a strict outrank of the target, citing the signer's Grant in `vac` (absent when the owner acts). Per target, the newest by millisecond time decides, the lower rumor id breaking a tie, among those whose signers the Roster lets name the target.
+
+```jsonc
+// A member names themselves
+{
+  "kind": 3315,
+  "pubkey": "<member>",
+  "content": "Moth",
+  "tags": [
+    ["p", "<member pubkey>"],
+    ["ms", "204"]
+  ],
+  "created_at": 1722410000
+}
+
+// A moderator renames a member beneath them
+{
+  "kind": 3315,
+  "pubkey": "<moderator>",
+  "content": "Moth (they/them)",
+  "tags": [
+    ["p", "<member pubkey>"],
+    ["vac", "<grant eid>", "<grant version>", "<grant edition hash>"],
+    ["ms", "31"]
+  ],
+  "created_at": 1722411000
+}
+```
+
+A Refounding starts a fresh Guestbook and only its Nicknames count. The Refounder carries each one someone set for another member it re-keyed and could set itself, dated as first issued to the millisecond; each member carries their own, as the identical rumor.
 
 ## 4. Control Plane — kind 3308 editions
 
