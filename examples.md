@@ -530,6 +530,17 @@ A deletion is an edition setting the terminal flag:
 
 Caps: 25 entries and 32,768 bytes of `content`, judged on the carried bytes — a violating edition still folds and chains, but reads as an empty list (CORD-04 §7). An entry failing verification (seal kind, signature, MAC, decryption, unpad/parse, rumor kind, author equality, or the rumor's `channel` tag not matching this list's Channel) is dropped alone; an `edit` bundle failing the same checks — with kind `3302`, and additionally the Edit's author matching the original's and its `e` tag naming the original — costs only the revision, never the pin. A member's deletion of their own message kills its pin.
 
+### vsk 12 — Community Signal (CORD-04 §8)
+
+`eid` = `signal_locator(community_id, signal_id)` (CORD-02 A.6), one entity per `signal_id` token. This CORD defines `signal_id` `pause`, gated by `MANAGE_CHANNELS`. Enforcement is a fold (a reader-expandable collapse), never a drop.
+
+```jsonc
+{ "paused": true, "until": 1722600000 }   // until: optional unix SECONDS auto-clear, ≤ 30d past this edition's created_at; absent = no expiry
+{ "paused": false }                        // the clearing edition (the next version)
+```
+
+Active while the folded head has `paused === true` and `until` is absent or in the future; an `until` outside the 30-day bound fails the head. While active, an honest client SHOULD freeze the Community — dropping the live Chat-plane subscription and disabling composition for **every** member, staff included — while keeping the Control Plane subscribed so the lift arrives, and MUST NOT resume as though nothing were missed (fetch the pause window, or record the gap for a later fill — a bounded newest-page pull suffices). Chat messages from non-staff authors timestamped at or after the pause edition collapse into a flood-style expandable row, and MUST NOT be dropped. A reader that does not implement a `signal_id` never derives its coordinate, so an unknown Signal is invisible and is dropped at the next Refounding.
+
 ### vsk 10 — Dissolved tombstone (CORD-02 §9)
 
 Owner-signed, chainless, exempt from version discipline — published at `dissolved_pk`, not the Control Plane address. Presence of one valid owner-signed edition *is* the state.
