@@ -54,6 +54,7 @@ Conventions used throughout:
 | 3303 | Rekey blobs (rotations) | [§5.1](#51-rotations) |
 | 3303 | Key deliveries: access, writer, certifier, history | [§5.2](#52-deliveries) |
 | 3320 | Writer certificate preimage (never published) | [§5.3](#53-kind-3320--writer-certificate-preimage) |
+| 3321 | Seal page of a Locked Channel's history | [§5.4](#54-kind-3321--seal-page) |
 | 33301 | Public invite bundle | [§6.1](#61-kind-33301--public-invite-bundle-cord-05-2) |
 | 33302 | Community List | [§6.2](#62-kind-33302--community-list-cord-02-8) |
 | 13303 | Invite List | [§6.3](#63-kind-13303--invite-list-cord-05-4) |
@@ -893,8 +894,12 @@ Deleting a Category unfiles its Channels, which render uncategorized, and leaves
     { "at": 1722500000000, "epoch": 3, "writer": "<writer_pk hex>", "root": 2,
       "by": "<minter pubkey>", "certifier": "<certifier pubkey>" },   // restricted: posts move to writer epoch 3's address
     { "at": 1722600000000, "stop": "<writer pubkey>", "from": 1722550000000 },   // epoch 3's certificate for them vouches for nothing from "from" (optional, ≤ at)
-    { "at": 1722700000000, "open": true }        // reopened: posts land at the read address again
+    { "at": 1722700000000, "open": true },       // reopened: posts land at the read address again
+    { "at": 1722800000000, "epoch": 4, "writer": "<writer_pk hex>", "root": 2,
+      "by": "<minter pubkey>", "certifier": "<certifier pubkey>", "locked": true },   // Locked: every write moves to epoch 4's address
+    { "at": 1722800700000, "sealed": 1840 }       // the edition that sealed the run (top-level "seal" below); moves nothing
   ],
+  "seal": { "page": "<first seal page's event id>", "read": 2, "until": 1722800600000, "run": 1722800000000, "count": 1840 },   // the read address before "until", by id (§5.4); "run" is the run's start
   "retired": [                                    // optional: writer entries the cap dropped
     [1, "<writer_pk hex>", 1719800000000, 1720000000000, "<certifier pubkey>"],   // epoch, address, window from and to (ms), certifier
     [2, "<writer_pk hex>", 1720100000000, 1721000000000]                         // an epoch that named no certifier: four elements
@@ -902,7 +907,7 @@ Deleting a Category unfiles its Channels, which render uncategorized, and leaves
 }
 ```
 
-A writer entry names the root epoch it was minted under (`root`), so a Refounding retires it, and its minter (`by`, the edition's signer). `at`, `epoch`, `root` and `from` are JSON numbers, writer epochs below 2^53.
+A writer entry names the root epoch it was minted under (`root`), so a Refounding retires it, and its minter (`by`, the edition's signer). `at`, `epoch`, `root` and `from` are JSON numbers, writer epochs below 2^53. A Locked window's entry carries `"locked": true`, and the top-level `seal` names the Channel's newest seal, carried by every edition and out of the cap's reach: a reader that predates either carries it verbatim, reading the window as one that gates posting alone.
 
 ### vsk 10 — Dissolved tombstone (CORD-02 §9)
 
@@ -1053,6 +1058,7 @@ A **writer** delivery of a restricted Channel's writer secret (§2.11), to each 
     ["writer",   "<writer_pk hex>"],              // the address the delivered secret derives to
     ["cert",     "<recipient pubkey>", "<writer certificate hex>"],   // one per recipient handed a certificate (§5.3)
     ["cert",     "<recipient pubkey>", "<writer certificate hex>"],
+    ["rcert",    "<recipient pubkey>", "<scoped certificate hex>", "131072"],   // a Locked Channel's reactor: covers reactions, never a post (§5.3)
     ["mint",     "1", "2"]                        // part 1 of 2 of the epoch's minting delivery; absent on any later serving
   ],
   "created_at": 1722500000
@@ -1112,6 +1118,42 @@ Unlike the rest of this file, these are real values: CORD-03 §1's test vector, 
   // the certificate. Signing again needn't reproduce it: any signature that verifies is the certificate.
 }
 ```
+
+A **scoped** certificate, for a Locked Channel's member who may react or join calls but not post, signs the same preimage over `sha256("concord/writer-cert-scoped" ‖ community_id ‖ channel_id ‖ epoch_be[8] ‖ writer_xonly ‖ rights_be[8])`, and rides as `["rcert", <recipient>, <signature>, <rights>]` on the delivery and `["rcert", <signature>, <rights>]` on each write it covers. The same inputs with rights `131072` (ADD_REACTIONS), real values again:
+
+```jsonc
+{
+  "id": "418f80ff45b3122867c508997774858af6ab99bc12f18afb97ff2c99ad8a7db0",
+  "kind": 3320,
+  "pubkey": "62c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f7",
+  "content": "",
+  "tags": [
+    ["digest", "14129a75435ce645cd6c76d170f4ad61e88f54c0168a2deed48c9213b5eba10c"]
+  ],
+  "created_at": 0,
+  "sig": "ec9f4cf12a0f5f09f199fdf776e4416859531e60e70c66ec477711c1f184fad59c913e6378b2be73d632c17223dc70a9acfcc930bd351bac461e2b521682c145"
+}
+```
+
+### 5.4 Kind 3321 — seal page
+
+One page of a Locked Channel's sealed history (CORD-03 §1): the wrap ids of what stood on one read plane before the seal's `until`, newest first, at most 300. It rides that plane: wrap and seal signed by the plane's key and encrypted under it, the epoch the link naming it carries, its `p` a throwaway key, dated one millisecond below `until`. It is fetched by event id, never by date. The event id commits to the content, so a page fetched by the id its predecessor (or the top-level `seal`) names is that page.
+
+```jsonc
+{
+  "kind": 3321,
+  "pubkey": "<read plane address of epoch 2>",
+  "content": "{\"ids\":\"<64-hex wrap id><64-hex wrap id>…\",\"range\":[1722100000000,1722799990000],\"next\":[\"<next page's event id>\",2]}",
+  "tags": [
+    ["channel", "<channel_id hex>"],
+    ["epoch",   "2"],                             // the read epoch it opens under
+    ["ms",      "999"]
+  ],
+  "created_at": 1722800599                         // one ms below the seal's "until"
+}
+```
+
+The oldest page of a Channel's first seal has `next` `null`; a later seal's oldest page names the previous seal's first, so one chain holds every lock's history. `range` is the oldest and newest event it names, in unix ms.
 
 ## 6. Outside the wrap
 
